@@ -1,0 +1,10 @@
+{
+  "id": "heybox-importer",
+  "name": "Heybox Importer",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Import Heybox (小黑盒) community posts as Markdown with images and metadata.",
+  "author": "Samuel",
+  "authorUrl": "",
+  "isDesktopOnly": true
+}

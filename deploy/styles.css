@@ -1,0 +1,21 @@
+/* Heybox Importer Plugin Styles */
+
+.heybox-importer-modal {
+  padding: 16px;
+}
+
+.heybox-importer-modal input {
+  width: 100%;
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+}
+
+.heybox-importer-modal .setting-item {
+  border: none;
+}
+
+.heybox-importer-notice {
+  color: var(--text-accent);
+}
