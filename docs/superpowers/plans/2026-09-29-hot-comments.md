@@ -1,6 +1,6 @@
 # 热门评论保存 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 导入小黑盒文章时，将用户设定数量的热门评论写入 Obsidian 笔记，默认 5 条。
 
@@ -39,19 +39,19 @@
 - `HeyboxPost` 增加 `comments: HeyboxComment[]` 与 `commentsUnavailable: boolean`。
 - 帖子读取入口变为 `fetchPost(link_id: string, commentLimit: number): Promise<HeyboxPost | null>`。
 
-- [ ] **Step 1: 从真实响应确认评论读取契约**
+- [x] **Step 1: 从真实响应确认评论读取契约**
 
-  使用现有帖子导入请求签名和一个公开文章链接，检查文章详情页发出的首层评论请求。记录请求路径、必要参数、成功响应中的评论数组、点赞字段以及分页游标；不得在日志或 fixture 中记录用户 Cookie 或令牌。用返回数据确认该请求能读出至少一篇文章的评论。
+  使用现有帖子导入请求签名和一个公开文章链接，检查文章详情页发出的首层评论请求。已找到当前网页扩展的实现：首层评论通过 `/bbs/app/link/tree` 请求，携带 `is_first`、`page`、`index`、`limit`、`owner_only` 和 `h_src` 参数；响应使用 `result.comments` 分组，每组的 `comment[0]` 是根评论，文本字段为 `text`、用户字段为 `user`，点赞数兼容 `up`/`up_num` 等字段。直接访问接口在本次环境返回 `show_captcha`，因此不能用本机响应确认实时字段；实现采用该请求契约，并将验证码/请求失败按可选评论获取失败处理，不尝试绕过验证。
 
-- [ ] **Step 2: 在 fetcher 中实现评论读取和规范化**
+- [x] **Step 2: 在 fetcher 中实现评论读取和规范化**
 
   复用 `apiGet` 与现有签名参数，不新增运行时依赖。按已确认的请求契约读取评论页，规范化作者、文本、点赞数和可用的创建时间；遇到分页时继续请求，直到评论数量达到 `commentLimit` 或响应表明没有下一页。按点赞数降序排序并截取目标数量；若返回总数不足则返回全部。设置正整数校验，非法值回退到 5。
 
-- [ ] **Step 3: 将评论失败隔离在补充数据路径**
+- [x] **Step 3: 将评论失败隔离在补充数据路径**
 
   在 `fetchPost` 中先完成现有文章正文、媒体和标签读取，再单独尝试读取评论。评论请求或响应解析抛错时返回 `comments: []` 和 `commentsUnavailable: true`；成功但无评论时返回空数组和 `false`。原有文章 API 错误仍按当前方式抛出。
 
-- [ ] **Step 4: 运行项目构建**
+- [x] **Step 4: 运行项目构建**
 
   Run: `npm run build`
   Expected: TypeScript 编译与 esbuild 打包成功。
@@ -69,26 +69,26 @@
 - 设置输入修改时只保存大于零的整数；旧配置缺字段或值非法时使用 `5`。
 - `buildMarkdown(post, opts)` 从 `post.comments` 读取评论，不更改现有正文和来源链接接口。
 
-- [ ] **Step 1: 增加默认值、旧配置兼容和设置输入**
+- [x] **Step 1: 增加默认值、旧配置兼容和设置输入**
 
   在 `DEFAULT_SETTINGS` 中增加 `hotCommentLimit: 5`。在 `loadSettings` 合并持久化数据后，将非正整数、非数值和缺省值归一为 5。设置页添加数字输入，标题为“热门评论数量”，说明默认抓取点赞最高的评论；有效变更保存设置。
 
-- [ ] **Step 2: 在 Markdown 中渲染热门评论**
+- [x] **Step 2: 在 Markdown 中渲染热门评论**
 
   在正文之后、Source 链接之前加入 `## 热门评论` 区块。评论按 `likes` 降序显示为有序列表，每项格式为 `作者（👍 点赞数）：评论内容`；若有创建时间，将其作为该项的补充元数据。文本中的换行保留为 Markdown 段落。评论数组为空时不输出标题或空列表。
 
-- [ ] **Step 3: 串接设置并反馈评论获取失败**
+- [x] **Step 3: 串接设置并反馈评论获取失败**
 
   `main.ts` 使用 `this.plugin.settings.hotCommentLimit` 调用 `fetchPost`。成功保存文章后，如果 `commentsUnavailable` 为真，显示文章已保存、评论未获取的提示；如果评论读取成功，保持现有导入成功提示。评论失败不得跳过 Markdown 生成或文件保存。
 
-- [ ] **Step 4: 更新 README 功能和设置说明**
+- [x] **Step 4: 更新 README 功能和设置说明**
 
   在功能列表中说明可保存按点赞排序的热门评论；在设置说明中写明默认数量为 5、可自行调整、可获取数量不足时保存全部。
 
-- [ ] **Step 5: 运行项目构建并检查产物**
+- [x] **Step 5: 运行项目构建并检查产物**
 
   Run: `npm run build`
-  Expected: 构建成功，`deploy/main.js` 包含评论读取与渲染更新，生成的 `deploy/` 文件符合 README 中部署方式。
+  Expected: 构建成功；构建生成根目录 `main.js`，然后将其复制到 `deploy/main.js`，使 README 指定的部署目录包含更新后的插件。
 
 ## 自查
 

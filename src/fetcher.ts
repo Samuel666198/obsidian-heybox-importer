@@ -6,6 +6,8 @@ const API_BASE = "https://api.xiaoheihe.cn";
 export interface HeyboxPost {
   title: string;
   content: string;
+  comments: HeyboxComment[];
+  commentsUnavailable: boolean;
   video?: string;
   tags: string[];
   link_id: string;
@@ -16,6 +18,13 @@ export interface HeyboxPost {
     avatar: string;
     userid: string;
   };
+}
+
+export interface HeyboxComment {
+  author: string;
+  content: string;
+  likes: number;
+  create_at?: string;
 }
 
 // ===== AES MixColumns =====
@@ -121,8 +130,89 @@ function htmlToMarkdown(html: string): string {
 // 简单内存缓存，避免重复请求同一个 link_id
 var fetchCache: Record<string, HeyboxPost> = {};
 
-export async function fetchPost(link_id: string): Promise<HeyboxPost | null> {
-  if (fetchCache[link_id]) return fetchCache[link_id];
+const COMMENT_PAGE_SIZE = 20;
+
+function getCommentLikes(comment: any): number {
+  const values = [
+    comment?.up,
+    comment?.up_num,
+    comment?.up_count,
+    comment?.support_num,
+    comment?.support_count,
+    comment?.like_num,
+    comment?.like_count,
+  ];
+  for (const value of values) {
+    if (value == null || value === "") continue;
+    const count = Number(value);
+    if (Number.isFinite(count)) return count;
+  }
+  return 0;
+}
+
+function normalizeComment(comment: any): HeyboxComment | null {
+  const content = String(comment?.text ?? comment?.content ?? "").trim();
+  if (!content) return null;
+
+  const createAt = comment?.create_at == null ? "" : String(comment.create_at);
+  return {
+    author: String(comment?.user?.username || comment?.user?.nickname || "匿名用户"),
+    content,
+    likes: getCommentLikes(comment),
+    create_at: createAt || undefined,
+  };
+}
+
+async function fetchHotComments(link_id: string, requestedLimit: number): Promise<HeyboxComment[]> {
+  const commentLimit = Number.isSafeInteger(requestedLimit) && requestedLimit > 0
+    ? requestedLimit
+    : 5;
+  const comments: HeyboxComment[] = [];
+  const seenIds = new Set<string>();
+
+  for (let page = 1; comments.length < commentLimit; page++) {
+    const data = await apiGet("/bbs/app/link/tree", {
+      link_id,
+      is_first: page === 1 ? "1" : "0",
+      page: String(page),
+      index: "1",
+      limit: String(COMMENT_PAGE_SIZE),
+      owner_only: "0",
+      h_src: "",
+    });
+
+    if (data.status === "show_captcha") throw new Error("请求过于频繁，请稍后再试");
+    if (data.status !== "ok") throw new Error("Comment API error: " + (data.msg || "unknown"));
+
+    if (!Array.isArray(data.result?.comments)) {
+      throw new Error("Comment API response is missing the comments list");
+    }
+    const groups: any[] = data.result.comments;
+    for (const group of groups) {
+      const root = Array.isArray(group?.comment) ? group.comment[0] : group?.comment;
+      const normalized = normalizeComment(root);
+      if (!normalized) continue;
+
+      const id = String(root?.comment_id ?? root?.commentid ?? root?.commentId ?? root?.id ?? "");
+      if (id && seenIds.has(id)) continue;
+      if (id) seenIds.add(id);
+      comments.push(normalized);
+    }
+
+    if (groups.length < COMMENT_PAGE_SIZE) break;
+  }
+
+  return comments
+    .map((comment, index) => ({ comment, index }))
+    .sort((left, right) => right.comment.likes - left.comment.likes || left.index - right.index)
+    .slice(0, commentLimit)
+    .map(({ comment }) => comment);
+}
+
+export async function fetchPost(link_id: string, commentLimit: number = 5): Promise<HeyboxPost | null> {
+  const normalizedLimit = Number.isSafeInteger(commentLimit) && commentLimit > 0 ? commentLimit : 5;
+  const cacheKey = link_id + ":" + normalizedLimit;
+  if (fetchCache[cacheKey]) return fetchCache[cacheKey];
 
   // Step 1: 获取元数据
   const treeData = await apiGet("/bbs/app/link/tree", { link_id });
@@ -175,9 +265,19 @@ export async function fetchPost(link_id: string): Promise<HeyboxPost | null> {
   // Tags
   var tags: string[] = (link.content_tags || []).map(function(t: any) { return t.text || ""; }).filter(function(t: string) { return t; });
 
-  return {
+  let comments: HeyboxComment[] = [];
+  let commentsUnavailable = false;
+  try {
+    comments = await fetchHotComments(link_id, normalizedLimit);
+  } catch (_e) {
+    commentsUnavailable = true;
+  }
+
+  const post = {
     title: link.title || "Untitled",
     content: markdownContent,
+    comments,
+    commentsUnavailable,
     video,
     tags,
     link_id,
@@ -189,4 +289,6 @@ export async function fetchPost(link_id: string): Promise<HeyboxPost | null> {
       userid: link.user?.userid || "",
     },
   };
+  if (!commentsUnavailable) fetchCache[cacheKey] = post;
+  return post;
 }
