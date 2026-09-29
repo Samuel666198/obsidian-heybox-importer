@@ -4,12 +4,19 @@ import type HeyboxImporterPlugin from "../main";
 export interface HeyboxImporterSettings {
   defaultFolder: string;
   includeTags: boolean;
+  hotCommentLimit: number;
 }
 
 export const DEFAULT_SETTINGS: HeyboxImporterSettings = {
   defaultFolder: "Heybox Notes",
   includeTags: true,
+  hotCommentLimit: 5,
 };
+
+export function normalizeHotCommentLimit(value: unknown): number {
+  const limit = Number(value);
+  return Number.isSafeInteger(limit) && limit > 0 ? limit : DEFAULT_SETTINGS.hotCommentLimit;
+}
 
 export class HeyboxImporterSettingTab extends PluginSettingTab {
   plugin: HeyboxImporterPlugin;
@@ -47,5 +54,23 @@ export class HeyboxImporterSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    new Setting(containerEl)
+      .setName("热门评论数量")
+      .setDesc("保存点赞最高的评论，默认为 5 条")
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = "1";
+        text.inputEl.step = "1";
+        text
+          .setPlaceholder("5")
+          .setValue(String(this.plugin.settings.hotCommentLimit))
+          .onChange(async (value) => {
+            const normalized = normalizeHotCommentLimit(value);
+            this.plugin.settings.hotCommentLimit = normalized;
+            if (String(normalized) !== value) text.setValue(String(normalized));
+            await this.plugin.saveSettings();
+          });
+      });
   }
 }

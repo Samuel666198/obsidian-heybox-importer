@@ -6,6 +6,7 @@ import {
   HeyboxImporterSettingTab,
   HeyboxImporterSettings,
   DEFAULT_SETTINGS,
+  normalizeHotCommentLimit,
 } from "./src/settings";
 
 export default class HeyboxImporterPlugin extends Plugin {
@@ -31,6 +32,7 @@ export default class HeyboxImporterPlugin extends Plugin {
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    this.settings.hotCommentLimit = normalizeHotCommentLimit(this.settings.hotCommentLimit);
   }
 
   async saveSettings() {
@@ -85,7 +87,7 @@ class HeyboxImportModal extends Modal {
   async doImport(link_id: string) {
     const notice = new Notice("Fetching Heybox data...", 0);
     try {
-      const post = await fetchPost(link_id);
+      const post = await fetchPost(link_id, this.plugin.settings.hotCommentLimit);
 
       if (!post) {
         notice.hide();
@@ -114,7 +116,11 @@ class HeyboxImportModal extends Modal {
 
       await this.app.vault.create(finalPath, markdown);
       notice.hide();
-      new Notice("Imported: " + post.title);
+      if (post.commentsUnavailable) {
+        new Notice("Imported: " + post.title + " (hot comments could not be fetched)");
+      } else {
+        new Notice("Imported: " + post.title);
+      }
       this.close();
     } catch (error) {
       notice.hide();

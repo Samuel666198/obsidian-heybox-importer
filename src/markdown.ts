@@ -40,6 +40,20 @@ export function buildMarkdown(
     lines.push("");
   }
 
+  if (post.comments?.length) {
+    lines.push("## 热门评论");
+    lines.push("");
+    post.comments.forEach((comment, index) => {
+      const createdAt = comment.create_at ? " · " + comment.create_at : "";
+      lines.push(`${index + 1}. ${comment.author}（👍 ${comment.likes}${createdAt}）：`);
+      lines.push("");
+      for (const line of comment.content.replace(/\r\n?/g, "\n").split("\n")) {
+        lines.push("   > " + line);
+      }
+      lines.push("");
+    });
+  }
+
   if (post.video) {
     lines.push("> 📹 [Video](" + post.video + ")");
     lines.push("");
